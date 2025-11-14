@@ -47,7 +47,7 @@ MouseButton :: enum {
 	MouseButton_Left = 0,
 }
 
-window_create :: proc(name: string, res: [2]int, flags := WindowFlags{.VSync}) -> (win: ^Window) {
+window_create :: proc(g: GlobalState, name: string, res: [2]int, flags := WindowFlags{.VSync}) -> (win: ^Window) {
 	{
 		assert(res.x > 0 && res.x <= int(max(i32)))
 		assert(res.y > 0 && res.y <= int(max(i32)))
@@ -111,15 +111,16 @@ window_create :: proc(name: string, res: [2]int, flags := WindowFlags{.VSync}) -
 	glfw.SwapInterval(i32(.VSync in flags))
 
 
-	/* OpenGL init section */
 	gl.load_up_to(GL_VERSION_MAJOR, GL_VERSION_MINOR, glfw.gl_set_proc_address)
 	if .Debug in flags {
 		gl.Enable(gl.DEBUG_OUTPUT)
+		default_logger_backend = context.logger
 
 		DebugCallback :: proc "c" (source: u32, type: u32, id: u32, severity: u32,
 				length: i32, message: cstring, userParam: rawptr) {
 			if severity == gl.DEBUG_SEVERITY_NOTIFICATION { return }
 			context = runtime.default_context()
+			context.logger = default_logger_backend
 			log.infof("GL DEBUG: %s %s %i %s: %s", gl.GL_Enum(source), gl.GL_Enum(type), gl.GL_Enum(id), gl.GL_Enum(severity), message)
 		}
 		gl.DebugMessageCallback(DebugCallback, nil)
@@ -179,3 +180,6 @@ window_isMouseButtonPressed :: proc(win: ^Window, mouse: MouseButton) -> bool {
 	)
 }
 
+
+@(private)
+default_logger_backend: log.Logger

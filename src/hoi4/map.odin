@@ -205,6 +205,11 @@ map_initStates :: proc(m: ^Map, g: GlobalState) {
 	m.states_LUT = make(type_of(m.states_LUT))
 	reserve(&m.states_LUT, len(m.states))
 
+	for &s, i in m.states {
+		s.vertex_id = i
+		m.states_LUT[s.color] = &s
+	}
+
 	log.infof("Created '%i' states", len(m.states))
 }
 
@@ -254,44 +259,7 @@ map_stateGetPoints :: proc(target: Color, m: Map, start: [2]int) -> ([2][2]int, 
 		return {points[0], {m.width - 1, start.y}}, true
 	}
 
-	return {{-1, -1}, {-1, -1}}, false
-}
-
-
-map_initMapGraphics :: proc(m: ^Map, gs: ^GraphicsContext) {
-	gs.state_indirect_cmds = make(type_of(gs.state_indirect_cmds), len(m.states))
-	gs.state_vertices = make(type_of(gs.state_vertices), 0, len(m.states) * 2 * 32)
-
-	points: [2][2]int
-	res: bool = ---
-
-	for &s, i in m.states {
-		vertex_start := len(gs.state_vertices)
-		for true {
-			points[1].x += 1
-			points, res = map_stateGetPoints(s.color, m^, points[1])
-			if !res { break }
-
-			append(
-				&gs.state_vertices,
-				Vertex{ {f32(points[0][0]), f32(points[0][1])} },
-				Vertex{ {f32(points[1][0]), f32(points[1][1])} }
-			)
-		}
-
-		s.vertex_id = i
-		m.states_LUT[s.color] = &s
-
-		gs.state_indirect_cmds[i] = {
-			count = u32(len(gs.state_vertices) - vertex_start) + 1,
-			instanceCount = 1,
-			first = u32(vertex_start),
-			baseInstance = u32(i)
-		}
-		gs.u_color[i] = s.owner.color
-	}
-
-	log.infof("Initialized map graphics")
+	return {{1, 0}, {-1, 0}}, false
 }
 
 

@@ -19,13 +19,12 @@ main :: proc() {
 	hoi4.ideologies_make(&ideologies, g)
 	defer hoi4.ideologies_delete(&ideologies)
 
-	win := hoi4.window_create("name", {1280, 720})
+	win := hoi4.window_create(g, "name", {1280, 720}, {.VSync, .Debug})
 	defer hoi4.window_close(win)
 
 	gs: hoi4.GraphicsContext
-	// TODO(EimaMei): Figure out how to refactor this more logically
-	hoi4.map_initMapGraphics(&m, &gs)
-	hoi4.graphics_init(&gs, {1280, 720})
+	hoi4.graphics_make(&gs, {1280, 720})
+	hoi4.graphics_stateInit(&gs, m)
 	defer hoi4.graphics_free(&gs)
 
 	hoi4.window_show(win)
