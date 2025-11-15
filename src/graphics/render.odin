@@ -14,11 +14,6 @@ Vertex :: struct {
 	pos: glm.vec2,
 }
 
-Shader :: struct {
-	program: u32,
-	uniforms: map[string]gl.Uniform_Info
-}
-
 GraphicsContext :: struct {
 	shader_state: Shader,
 	shader_stencil: Shader,
@@ -38,17 +33,11 @@ GraphicsContext :: struct {
 graphics_make :: proc(gs: ^GraphicsContext, window_res: [2]int) -> bool {
 	res: bool = ---
 
-	//gl.Enable(gl.DEPTH_TEST)
-	//gl.DepthFunc(gl.LESS)
-	//gl.Enable(gl.STENCIL_TEST)
-	//gl.StencilFunc(gl.NOTEQUAL, 1, 0xFF)
-	//gl.StencilOp(gl.KEEP, gl.KEEP, gl.REPLACE)
-
 	gs.shader_state, res = shader_make(#load("../../res/shaders/state_v.glsl"), #load("../../res/shaders/state_f.glsl"))
 	if (!res) { return false }
 
-	//gs.shader_stencil, res = shader_make(#load("../../res/stencil_vertex.glsl"), #load("../../res/stencil_fragment.glsl"))
-	//if (!res) { return false }
+	gs.shader_stencil, res = shader_make(#load("../../res/shaders/stencil_v.glsl"), #load("../../res/shaders/stencil_f.glsl"))
+	if (!res) { return false }
 
 	shader_use(gs.shader_state)
 
@@ -61,7 +50,18 @@ graphics_make :: proc(gs: ^GraphicsContext, window_res: [2]int) -> bool {
 	gs.state_IBO = buffers[1]
 
 	gl.Viewport(0, 0, i32(window_res.x), i32(window_res.y))
-	gs.u_transform = glm.mat4Ortho3d(0, f32(window_res.x), f32(window_res.y), 0, 0, 1)
+	gs.u_transform = {
+		1, 0, 0, 0,
+		0, 1, 0, 0,
+		0, 0, 1, 0,
+		0, 0, 0, 1
+	}
+
+	gl.Enable(gl.DEPTH_TEST)
+	gl.DepthFunc(gl.LESS)
+	gl.Enable(gl.STENCIL_TEST)
+	gl.StencilFunc(gl.NOTEQUAL, 1, 0xFF)
+	gl.StencilOp(gl.KEEP, gl.KEEP, gl.REPLACE)
 
 	return true
 }
@@ -82,16 +82,18 @@ graphics_free :: proc(gs: ^GraphicsContext) {
 }
 
 
-graphics_render :: proc(gs: ^GraphicsContext, bg: [4]f32) {
+graphics_render :: proc(gs: ^GraphicsContext, m: Map, bg: [4]f32) {
 	gl.ClearColor(bg.r, bg.g, bg.b, bg.a)
-	gl.Clear(gl.COLOR_BUFFER_BIT)
+	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT)
 
+
+	ortho := glm.mat4Ortho3d(0, f32(1280.0), f32(720.0), 0, 0, 1)
 
 	shader_use(gs.shader_state)
-	shader_uniformSet(gs.shader_state, "u_transform", gs.u_transform)
+	shader_uniformSet(gs.shader_state, "u_transform", ortho * gs.u_transform)
 
-	//gl.StencilFunc(gl.ALWAYS, 1, 0xFF)
-	//gl.StencilMask(0xFF)
+	gl.StencilFunc(gl.ALWAYS, 1, 0xFF)
+	gl.StencilMask(0xFF)
 
 	gl.BindVertexArray(gs.state_VAO)
 	gl.MultiDrawArraysIndirect(gl.LINES, nil, i32(len(gs.state_indirect_cmds)), 0)
@@ -99,86 +101,16 @@ graphics_render :: proc(gs: ^GraphicsContext, bg: [4]f32) {
 	//gl.StencilFunc(gl.NOTEQUAL, 1, 0xFF)
 	//gl.StencilMask(0x00)
 	//gl.Disable(gl.DEPTH_TEST)
+	//shader_use(gs.shader_stencil)
 
-	//gl.UseProgram(gs.shader_stencil.program)
+	//shader_uniformSet(gs.shader_stencil, "u_transform", ortho * gs.u_transform * glm.mat4Translate({-50, 0, 0}) * glm.mat4Scale({1.05, 1.05, 0}))
 	//gl.BindVertexArray(gs.state_VAO)
-	//gl.UniformMatrix4fv(gs.shader_stencil.uniforms["u_transform"].location, 1, false, raw_data(&gs.u_transform))
 	//gl.MultiDrawArraysIndirect(gl.LINES, nil, i32(len(gs.state_indirect_cmds)), 0)
 
 	//gl.StencilMask(0xFF)
 	//gl.StencilFunc(gl.ALWAYS, 0, 0xFF)
 	//gl.Enable(gl.DEPTH_TEST)
 }
-
-
-
-shader_make :: proc(vertex_shader, fragment_shader: string) -> (s: Shader, res: bool) {
-	s.program, res = gl.load_shaders_source(vertex_shader, fragment_shader)
-	if !res {
-		log.error("Failed to load shaders")
-		res = false
-		return
-	}
-
-	s.uniforms = gl.get_uniforms_from_program(s.program)
-	res = true
-	return
-}
-
-shader_destroy :: proc(s: ^Shader) {
-	gl.destroy_uniforms(s.uniforms)
-	gl.DeleteProgram(s.program)
-
-	s^ = {}
-}
-
-
-shader_use :: proc(s: Shader) {
-	gl.UseProgram(s.program)
-}
-
-
-shader_uniformSet :: proc {
-	shader_uniformSet_matrix,
-	//shader_uniformSet_matrix_arr,
-	shader_uniformSet_vec4,
-	shader_uniformSet_vec4_arr,
-}
-
-
-shader_uniformSet_matrix :: #force_inline proc(s: Shader, $uniform_name: string, m: matrix[4, 4]f32) {
-	f := transmute([16]f32)(m)
-	gl.UniformMatrix4fv(s.uniforms[uniform_name].location, 1, false, raw_data(f[:]))
-}
-
-shader_uniformSet_vec4 :: #force_inline proc(s: Shader, $uniform_name: string,
-		v: [4]f32) {
-	shader_uniformSet_index(s, uniform_name, 0, v)
-}
-
-shader_uniformSet_vec4_arr :: #force_inline proc(s: Shader, $uniform_name: string,
-		v: [][4]f32) {
-	shader_uniformSet_index(s, uniform_name, 0, v)
-}
-
-
-shader_uniformSet_index :: proc {
-	shader_uniformSet_index_vec4,
-	shader_uniformSet_index_vec4_arr,
-}
-
-shader_uniformSet_index_vec4 :: #force_inline proc(s: Shader, $uniform_name: string,
-		i: int, v: [4]f32) {
-	v := v
-	gl.Uniform4fv(s.uniforms[uniform_name].location + i32(i), 1, raw_data(&v))
-}
-
-shader_uniformSet_index_vec4_arr :: #force_inline proc(s: Shader, $uniform_name: string,
-		i: int, v: [][4]f32) {
-	gl.Uniform4fv(s.uniforms[uniform_name].location + i32(i), i32(len(v)), raw_data(&v[0]))
-}
-
-
 
 graphics_stateInit :: proc(gs: ^GraphicsContext, m: Map) {
 	gs.state_indirect_cmds = make(type_of(gs.state_indirect_cmds), len(m.states))
@@ -203,13 +135,12 @@ graphics_stateInit :: proc(gs: ^GraphicsContext, m: Map) {
 		}
 
 		gs.state_indirect_cmds[i] = {
-			count = u32(len(gs.state_vertices) - vertex_start) + 1,
+			count = u32(len(gs.state_vertices) - vertex_start),
 			instanceCount = 1,
 			first = u32(vertex_start),
 			baseInstance = u32(i)
 		}
 		u_color[i] = s.owner.color
-		log.info("b: ", i, gs.state_indirect_cmds[i], u_color[i])
 	}
 
 
@@ -234,7 +165,6 @@ graphics_stateInit :: proc(gs: ^GraphicsContext, m: Map) {
 	gl.EnableVertexAttribArray(0)
 	shader_uniformSet(gs.shader_state, "u_color[0]", u_color[:])
 
-
 	log.infof("Initialized map graphics")
 }
 
@@ -248,7 +178,7 @@ graphics_stateSetColor :: proc {
 	graphics_stateSetColor_color
 }
 
-graphics_stateSetColor_vec4 :: proc(gs: ^GraphicsContext, s: State, color: [4]f32) {
+graphics_stateSetColor_vec4 :: #force_inline proc(gs: ^GraphicsContext, s: State, color: [4]f32) {
 	shader_uniformSet_index(gs.shader_state, "u_color[0]", s.vertex_id, color)
 }
 

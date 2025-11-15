@@ -5,6 +5,7 @@ import "core:mem"
 import "core:log"
 
 
+
 GlobalState :: struct {
 	filepath: string,
 
@@ -13,6 +14,9 @@ GlobalState :: struct {
 	logger_backend: log.Logger,
 	alloc_strings_backend: mem.Dynamic_Arena,
 
+	m: Map,
+	ideologies: Ideologies,
+	gs: GraphicsContext,
 
 	player: ^Country,
 	selected_state: ^State,

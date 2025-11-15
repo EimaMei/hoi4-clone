@@ -47,7 +47,7 @@ Country :: struct {
 
 	color: [4]f32,
 
-	states: []^State,
+	states: [dynamic]^State,
 }
 
 
@@ -124,6 +124,7 @@ map_initCountries :: proc(m: ^Map, g: GlobalState) {
 		c: Country
 		c.tag = {tag[0], tag[1], tag[2]}
 		c.color = color
+		c.states = make(type_of(c.states), 0, 8)
 		append(&m.countries, c)
 
 		free_all(context.temp_allocator)
@@ -148,6 +149,11 @@ map_initCountries :: proc(m: ^Map, g: GlobalState) {
 }
 
 map_destroyCountry :: proc(m: ^Map) {
+	for c in m.countries {
+		if (c.states != nil) {
+			delete(c.states)
+		}
+	}
 	if (m.countries != nil) { delete(m.countries) }
 	if (m.countries_LUT != nil) { delete(m.countries_LUT) }
 
@@ -195,6 +201,7 @@ map_initStates :: proc(m: ^Map, g: GlobalState) {
 		s.owner = map_findCountry(m^, {owner[0], owner[1], owner[2]})
 
 		append(&m.states, s)
+		append(&s.owner.states, &m.states[len(m.states) - 1])
 		free_all(context.temp_allocator)
 	}
 
@@ -267,6 +274,6 @@ map_findCountry :: #force_inline proc(m: Map, tag: [3]u8) -> ^Country {
 	return m.countries_LUT[tag]
 }
 
-map_getPixel :: proc(m: Map, pos: [2]int) -> Color {
+map_getPixel :: #force_inline proc(m: Map, pos: [2]int) -> Color {
 	return m.data[pos.y * m.width + pos.x]
 }
